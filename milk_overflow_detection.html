@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Milk Overflow Detector</title>
+  <style>
+    body { display: flex; flex-direction: column; align-items: center; font-family: sans-serif; margin: 0; padding: 20px; }
+    video { width: 90%; max-width: 400px; border: 2px solid #333; margin-bottom: 10px; }
+    button { padding: 10px 20px; font-size: 16px; }
+  </style>
+</head>
+<body>
+  <h1>Milk Overflow Detector</h1>
+  <video id="video" autoplay playsinline></video>
+  <button id="startBtn">Start Monitoring</button>
+
+  <audio id="alarm" src="https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3" preload="auto"></audio>
+
+  <script>
+    const video = document.getElementById('video');
+    const startBtn = document.getElementById('startBtn');
+    const alarm = document.getElementById('alarm');
+
+    let monitoring = false;
+
+    async function startCamera() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert("Camera API not supported on this device/browser.");
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        video.srcObject = stream;
+      } catch (err) {
+        alert("Camera access is required: " + err);
+      }
+    }
+
+
+    function monitorFrame() {
+      if (!monitoring) return;
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = frame.data;
+
+      // Simple "foam/brightness" detection
+      let brightPixels = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const brightness = (r + g + b) / 3;
+        if (brightness > 200) brightPixels++;
+      }
+
+      const percentBright = brightPixels / (frame.width * frame.height) * 100;
+
+      // If too many bright pixels → milk overflow
+      if (percentBright > 15) { // tweak threshold for your pot/camera
+        alarm.play();
+        alert("⚠️ Milk Overflow Detected!");
+        monitoring = false; // stop monitoring until restarted
+        return;
+      }
+
+      requestAnimationFrame(monitorFrame);
+    }
+
+    startBtn.addEventListener('click', () => {
+      if (!monitoring) {
+        monitoring = true;
+        monitorFrame();
+      }
+    });
+
+    startCamera();
+  </script>
+</body>
+</html>
